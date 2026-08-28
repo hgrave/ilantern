@@ -1,0 +1,27 @@
+name: Validate
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render a .env so interpolation can be checked
+        run: |
+          cp .env.example .env
+          sed -i 's/^\(NEXTCLOUD_ADMIN_PASSWORD\|POSTGRES_PASSWORD\|REDIS_PASSWORD\)=$/\1=ci-placeholder/' .env
+
+      - name: Validate the compose file
+        run: docker compose config -q
+
+      - name: Lint the shell scripts
+        run: shellcheck scripts/*.sh scripts/occ config/nextcloud/hooks/before-starting/*.sh
+
+      - name: Lint the extra Nextcloud config
+        run: php -l config/nextcloud/zz-tuning.config.php
