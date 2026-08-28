@@ -1,0 +1,123 @@
+# Nextcloud production-ish stack: Apache app server, PostgreSQL, Redis, background cron.
+#
+#   cp .env.example .env && ./scripts/bootstrap.sh
+#
+# Enable the TLS reverse proxy with:  docker compose --profile tls up -d
+
+name: nextcloud
+
+services:
+  db:
+    image: postgres:${POSTGRES_IMAGE_TAG:-17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Nextcloud requires a deterministic, non-locale-dependent collation.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:${REDIS_IMAGE_TAG:-8-alpine}
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  app:
+    image: nextcloud:${NEXTCLOUD_IMAGE_TAG:-34-apache}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${NEXTCLOUD_HTTP_PORT:-8080}:80"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
+      # Consumed by the image's first-run installer only; ignored afterwards.
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:?set NEXTCLOUD_ADMIN_USER in .env}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?set NEXTCLOUD_ADMIN_PASSWORD in .env}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-localhost}
+      NEXTCLOUD_DEFAULT_PHONE_REGION: ${NEXTCLOUD_DEFAULT_PHONE_REGION:-US}
+      OVERWRITEPROTOCOL: ${OVERWRITEPROTOCOL:-}
+      OVERWRITECLIURL: ${OVERWRITECLIURL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      APACHE_DISABLE_REWRITE_IP: ${APACHE_DISABLE_REWRITE_IP:-0}
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-512M}
+      PHP_UPLOAD_LIMIT: ${PHP_UPLOAD_LIMIT:-10G}
+    volumes:
+      - nextcloud:/var/www/html
+      # Copied into config/ by the before-starting hook. Extra *.config.php
+      # files are merged after config.php, so the settings survive upgrades.
+      - ./config/nextcloud/zz-tuning.config.php:/usr/src/nextcloud-custom/zz-tuning.config.php:ro
+      - ./config/nextcloud/hooks:/docker-entrypoint-hooks.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/status.php | grep -q '\"installed\":true'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+  # Nextcloud's background jobs. Without this, jobs only run on page loads (AJAX mode).
+  cron:
+    image: nextcloud:${NEXTCLOUD_IMAGE_TAG:-34-apache}
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Shares the app's volume, so it picks up the config the app installed.
+      - nextcloud:/var/www/html
+
+  # Optional: terminates TLS with automatic Let's Encrypt certificates.
+  #   docker compose --profile tls up -d
+  proxy:
+    image: caddy:${CADDY_IMAGE_TAG:-2-alpine}
+    profiles: ["tls"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      NEXTCLOUD_DOMAIN: ${NEXTCLOUD_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  nextcloud:
+  db_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

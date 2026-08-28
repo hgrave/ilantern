@@ -1,0 +1,22 @@
+{
+	# Leave ACME_EMAIL empty for a local/internal cert; set it in .env for
+	# Let's Encrypt so expiry notices reach you.
+	email {$ACME_EMAIL}
+}
+
+{$NEXTCLOUD_DOMAIN} {
+	encode zstd gzip
+
+	# Nextcloud publishes DAV endpoints at these well-known paths; clients
+	# break without the redirects.
+	redir /.well-known/carddav /remote.php/dav 301
+	redir /.well-known/caldav /remote.php/dav 301
+
+	header {
+		Strict-Transport-Security "max-age=15768000; includeSubDomains"
+	}
+
+	reverse_proxy app:80 {
+		header_up X-Forwarded-Proto https
+	}
+}
