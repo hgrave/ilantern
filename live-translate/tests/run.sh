@@ -85,17 +85,19 @@ check "pid file removed after stop" [ ! -e "$LT_PID_FILE" ]
 check "stop message printed" grep -q 'stopping' "$T/stop.out"
 
 echo "== 6. install.sh dry run (Hyprland dialect selection)"
+# CI runners export XDG_CONFIG_HOME pointing at the real home; clear it so the fake HOME wins.
+dry_install() { env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$fakehome" bash "$ROOT/install.sh" --dry-run --no-packages --no-pipewire 2>&1 || true; }
 fakehome="$T/home"; mkdir -p "$fakehome/.config/hypr"
 printf '# test\n' >"$fakehome/.config/hypr/hyprland.conf"
-out="$(HOME="$fakehome" bash "$ROOT/install.sh" --dry-run --no-packages --no-pipewire 2>&1 || true)"
+out="$(dry_install)"
 if command -v hyprctl >/dev/null; then echo "  skip legacy-dialect check (hyprctl present)"; else
-check "legacy dialect without hyprctl/omarchy" grep -q 'windowrulev2' <<<"$out"; fi
+check "legacy dialect without hyprctl/omarchy" grep -q 'windowrulev2' <<<"$out" || printf '%s\n' "$out" | sed 's/^/    | /'; fi
 mkdir -p "$fakehome/.local/share/omarchy/default/hypr"; echo 'windowrule = float on, match:class x' >"$fakehome/.local/share/omarchy/default/hypr/windows.conf"
-out="$(HOME="$fakehome" bash "$ROOT/install.sh" --dry-run --no-packages --no-pipewire 2>&1 || true)"
-check "new dialect inferred from Omarchy defaults" grep -q 'Hyprland >= 0.53' <<<"$out"
+out="$(dry_install)"
+check "new dialect inferred from Omarchy defaults" grep -q 'Hyprland >= 0.53' <<<"$out" || printf '%s\n' "$out" | sed 's/^/    | /'
 rm -f "$fakehome/.config/hypr/hyprland.conf"; printf -- '-- lua\n' >"$fakehome/.config/hypr/hyprland.lua"
-out="$(HOME="$fakehome" bash "$ROOT/install.sh" --dry-run --no-packages --no-pipewire 2>&1 || true)"
-check "Omarchy 4 Lua layout detected" grep -q 'live-translate.lua' <<<"$out"
+out="$(dry_install)"
+check "Omarchy 4 Lua layout detected" grep -q 'live-translate.lua' <<<"$out" || printf '%s\n' "$out" | sed 's/^/    | /'
 
 if [[ -n "${LT_REAL_WHISPER_BIN:-}" && -n "${LT_REAL_MODEL:-}" && -r "${LT_REAL_SAMPLE:-}" ]]; then
   echo "== 7. real whisper.cpp end-to-end (LT_REAL_*)"
