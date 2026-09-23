@@ -1,0 +1,56 @@
+signal time=1727000000.000001 sender=org.freedesktop.DBus -> destination=:1.99 serial=2 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameAcquired
+   string ":1.99"
+method call time=1727000001.100000 sender=:1.50 -> destination=:1.20 serial=12 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "Google Chrome"
+   uint32 0
+   string ""
+   string "Nguyễn Văn A"
+   string "<a href="https://chat.zalo.me/">chat.zalo.me</a>
+
+Chào bạn, tối nay đi ăn không?"
+   array [
+      string "default"
+      string "Activate"
+   ]
+   array [
+      dict entry(
+         string "urgency"
+         variant             byte 1
+      )
+   ]
+   int32 -1
+method call time=1727000002.200000 sender=:1.51 -> destination=:1.20 serial=13 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "Slack"
+   uint32 0
+   string ""
+   string "Boss"
+   string "Unrelated message"
+   array [
+   ]
+   array [
+   ]
+   int32 -1
+method call time=1727000003.300000 sender=:1.50 -> destination=:1.20 serial=14 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "Brave"
+   uint32 0
+   string ""
+   string "Nhóm Gia Đình"
+   string "chat.zalo.me
+
+Mẹ: A &amp; B đã về"
+   array [
+   ]
+   array [
+   ]
+   int32 -1
+method call time=1727000004.400000 sender=:1.52 -> destination=:1.20 serial=15 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "Zalo"
+   uint32 0
+   string "zalo"
+   string "Trần B"
+   string "single line"
+   array [
+   ]
+   array [
+   ]
+   int32 -1

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# zalo-launch — open Zalo Web as a Chromium-family app window.
+#
+# The window is a real browser profile window (--app=URL), so every extension
+# installed in that profile — e.g. an auto-translate extension — runs inside
+# Zalo exactly as it does in a normal tab.
+#
+# Usage: zalo-launch <browser> <url> [profile-directory]
+#   browser: default | chrome | brave | chromium | <any executable name>
+#   profile-directory: e.g. "Default" or "Profile 1" (empty = browser default)
+set -euo pipefail
+
+browser="${1:-default}"
+url="${2:-https://chat.zalo.me/}"
+profile="${3:-}"
+
+flags=("--app=$url")
+[[ -n $profile ]] && flags+=("--profile-directory=$profile")
+
+first_present() {
+  local candidate
+  for candidate in "$@"; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+case "${browser,,}" in
+default | "")
+  # Omarchy's own helper: the default browser when it is Chromium-based,
+  # Chromium otherwise.
+  exec omarchy-launch-webapp "$url" "${flags[@]:1}"
+  ;;
+chrome | "google chrome")
+  bin=$(first_present google-chrome-stable google-chrome) || { echo "zalo-launch: Google Chrome is not installed" >&2; exit 127; }
+  ;;
+brave)
+  bin=$(first_present brave brave-browser brave-browser-stable) || { echo "zalo-launch: Brave is not installed" >&2; exit 127; }
+  ;;
+chromium)
+  bin=$(first_present chromium chromium-browser) || { echo "zalo-launch: Chromium is not installed" >&2; exit 127; }
+  ;;
+*)
+  bin=$(first_present "$browser") || { echo "zalo-launch: '$browser' is not installed" >&2; exit 127; }
+  ;;
+esac
+
+if command -v uwsm-app >/dev/null 2>&1; then
+  exec setsid uwsm-app -- "$bin" "${flags[@]}"
+fi
+exec setsid "$bin" "${flags[@]}" >/dev/null 2>&1

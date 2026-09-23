@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# zalo-notify-watch — print one line per Zalo desktop notification.
+#
+# Zalo has no public API for personal accounts, and Zalo Web keeps its unread
+# state inside the live browser session. What the session *does* do on every
+# new message is ask the desktop notification daemon to show a toast, so this
+# listens for those.
+#
+# omarchy-shell owns org.freedesktop.Notifications, but any session-bus client
+# may act as a *monitor* and observe Notify calls addressed to someone else.
+# dbus-monitor does exactly that without interfering with the real daemon.
+#
+# Output (one line per matching notification, fields separated by \x1f):
+#   app_name \x1f summary \x1f body
+# with backslashes escaped as \\ and newlines as \n. Only notifications whose
+# app name mentions Zalo or whose body mentions the Zalo Web host are emitted;
+# everything else is dropped here and never reaches the shell.
+#
+# Usage: zalo-notify-watch [match-host]   (default: chat.zalo.me)
+#        zalo-notify-watch --parse [match-host] < dbus-monitor-output   (tests)
+set -euo pipefail
+
+parse_only=0
+if [[ ${1:-} == --parse ]]; then
+  parse_only=1
+  shift
+fi
+MATCH_HOST="${1:-chat.zalo.me}"
+
+parse() {
+  awk -v host="$MATCH_HOST" '
+  function esc(s) {
+    gsub(/\\/, "\\\\", s)
+    gsub(/\x1f/, " ", s)
+    gsub(/\t/, " ", s)
+    gsub(/\n/, "\\n", s)
+    return s
+  }
+  function emit() {
+    sub(/"[[:space:]]*$/, "", body)
+    if (tolower(app) !~ /zalo/ && (host == "" || index(tolower(body), tolower(host)) == 0)) return
+    printf "%s\x1f%s\x1f%s\n", esc(app), esc(summary), esc(body)
+    fflush()
+  }
+  /member=Notify/ { inNotify = 1; idx = 0; app = ""; summary = ""; body = ""; collecting = 0; next }
+  inNotify && collecting {
+    if ($0 ~ /^[[:space:]]*array \[/) { collecting = 0; inNotify = 0; emit(); next }
+    body = body "\n" $0
+    next
+  }
+  inNotify && /^[[:space:]]+string "/ {
+    idx++
+    value = $0
+    sub(/^[[:space:]]+string "/, "", value)
+    if (idx == 1) { sub(/"$/, "", value); app = value }
+    else if (idx == 3) { sub(/"$/, "", value); summary = value }
+    else if (idx == 4) { body = value; collecting = 1 }
+    next
+  }
+  '
+}
+
+if (( parse_only )); then
+  parse
+  exit 0
+fi
+
+command -v dbus-monitor >/dev/null 2>&1 || { echo "zalo-notify-watch: dbus-monitor not found" >&2; exit 127; }
+
+# Run the pipeline in its own process group so a normal teardown reaches both
+# members, and ask the kernel to TERM dbus-monitor if this script is killed
+# outright (a QML reload SIGKILLs its Process), so no monitor is left behind.
+set -m
+pdeath=()
+if command -v setpriv >/dev/null 2>&1; then
+  pdeath=(setpriv --pdeathsig TERM)
+fi
+
+"${pdeath[@]}" dbus-monitor --session "interface='org.freedesktop.Notifications',member='Notify'" | parse &
+
+trap 'kill -TERM %1 2>/dev/null' EXIT INT TERM
+wait %1 || true
