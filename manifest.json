@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.hgrave.zalo",
+  "name": "Zalo",
+  "version": "0.1.0",
+  "author": "hgrave",
+  "license": "MIT",
+  "description": "Zalo Web in the Omarchy bar: unread badge, one click to open or focus Zalo as a Chrome/Brave web app (with your profile's extensions, e.g. auto-translate), and a popup with quick actions and recent messages.",
+  "homepage": "https://github.com/hgrave/ilantern",
+  "repository": "https://github.com/hgrave/ilantern",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Zalo",
+    "description": "Unread badge for Zalo Web. Click to open or focus Zalo, right-click for recent messages and actions, middle-click to mark read.",
+    "category": "Communication",
+    "aliases": ["zalo", "chat", "messenger"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "browser": "Default browser",
+      "profile": "",
+      "url": "https://chat.zalo.me/",
+      "clickAction": "Open or focus Zalo",
+      "showCount": true,
+      "showPreviews": true,
+      "maxRecent": 15,
+      "windowClassPattern": "chat\\.zalo\\.me|zalo"
+    },
+    "schema": [
+      {
+        "key": "browser",
+        "type": "enum",
+        "label": "Browser",
+        "options": ["Default browser", "Google Chrome", "Brave", "Chromium"],
+        "defaultValue": "Default browser",
+        "description": "Zalo opens as an app window in this browser, so extensions installed there (such as an auto-translate extension) run inside Zalo."
+      },
+      {
+        "key": "profile",
+        "type": "string",
+        "label": "Browser profile directory",
+        "defaultValue": "",
+        "description": "Optional, e.g. \"Default\" or \"Profile 1\" — the profile that has your extensions. Empty uses the browser's last-used profile."
+      },
+      {
+        "key": "clickAction",
+        "type": "enum",
+        "label": "Left click",
+        "options": ["Open or focus Zalo", "Open panel"],
+        "defaultValue": "Open or focus Zalo",
+        "description": "Right click does the other one."
+      },
+      {
+        "key": "showCount",
+        "type": "boolean",
+        "label": "Show unread count (off shows a dot)",
+        "defaultValue": true
+      },
+      {
+        "key": "showPreviews",
+        "type": "boolean",
+        "label": "Show message previews in the panel",
+        "defaultValue": true
+      },
+      {
+        "key": "maxRecent",
+        "type": "integer",
+        "label": "Recent messages to keep",
+        "min": 1,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 15
+      },
+      {
+        "key": "url",
+        "type": "string",
+        "label": "Zalo Web URL",
+        "defaultValue": "https://chat.zalo.me/"
+      },
+      {
+        "key": "windowClassPattern",
+        "type": "string",
+        "label": "Zalo window class pattern (regex)",
+        "defaultValue": "chat\\.zalo\\.me|zalo"
+      }
+    ]
+  }
+}
